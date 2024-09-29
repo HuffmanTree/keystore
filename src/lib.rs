@@ -36,20 +36,25 @@ impl<T: Clone> Keystore<T> {
         }
     }
 
-    pub fn insert_entry(&mut self, index: String, public_entry: T, private_entry: Vec<u8>, password: String) -> Result<(), Error> {
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let key = pbkdf2_hmac_array::<Sha256, 32>(&password.into_bytes(), &nonce, self.round);
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
-        match cipher.encrypt(&nonce, private_entry.as_ref()) {
-            Ok(ciphertext) => {
-                self.entries.insert(KeystoreIndex(index), KeystoreEntry {
-                    public: public_entry,
-                    private: ciphertext,
-                    meta: KeystoreEntryMeta { nonce, round: self.round },
-                });
-                Ok(())
+    pub fn insert_entry(&mut self, index: String, public_entry: T, private_entry: Vec<u8>, password: String) -> Option<Result<(), Error>> {
+        match self.entries.get(&KeystoreIndex(index.clone())) {
+            Some(_) => None,
+            None => {
+                let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+                let key = pbkdf2_hmac_array::<Sha256, 32>(&password.into_bytes(), &nonce, self.round);
+                let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+                match cipher.encrypt(&nonce, private_entry.as_ref()) {
+                    Ok(ciphertext) => {
+                        self.entries.insert(KeystoreIndex(index), KeystoreEntry {
+                            public: public_entry,
+                            private: ciphertext,
+                            meta: KeystoreEntryMeta { nonce, round: self.round },
+                        });
+                        Some(Ok(()))
+                    }
+                    Err(err) => Some(Err(err))
+                }
             }
-            Err(err) => Err(err)
         }
     }
 
@@ -79,7 +84,7 @@ impl<T: Clone> Keystore<T> {
         match self.remove_entry(index.clone(), old_password.clone()) {
             None => None,
             Some(Err(e)) => Some(Err(e)),
-            Some(Ok(_)) => Some(self.insert_entry(index, public_entry, private_entry, new_password.unwrap_or(old_password))),
+            Some(Ok(_)) => self.insert_entry(index, public_entry, private_entry, new_password.unwrap_or(old_password)),
         }
     }
 
@@ -111,7 +116,8 @@ mod tests {
     fn add_an_entry() {
         let mut keystore = Keystore::<String>::new(None);
 
-        assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Ok(()));
+        assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Some(Ok(())));
+        assert_eq!(keystore.insert_entry("index".to_string(), "new_public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), None);
         assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().public, "public".to_string());
         assert_ne!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().private, "private".as_bytes().to_vec());
     }
