@@ -36,7 +36,7 @@ impl<T: Clone> Keystore<T> {
         }
     }
 
-    pub fn add_entry(&mut self, index: String, public_entry: T, private_entry: Vec<u8>, password: String) -> Result<(), Error> {
+    pub fn insert_entry(&mut self, index: String, public_entry: T, private_entry: Vec<u8>, password: String) -> Result<(), Error> {
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
         let key = pbkdf2_hmac_array::<Sha256, 32>(&password.into_bytes(), &nonce, self.round);
         let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
@@ -103,7 +103,7 @@ mod tests {
     fn add_an_entry() {
         let mut keystore = Keystore::<String>::new(None);
 
-        assert_eq!(keystore.add_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string(), ), Ok(()));
+        assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Ok(()));
         assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().public, "public".to_string());
         assert_ne!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().private, "private".as_bytes().to_vec());
     }
