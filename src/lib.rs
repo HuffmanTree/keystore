@@ -75,6 +75,14 @@ impl<T: Clone> Keystore<T> {
         }
     }
 
+    pub fn update_entry(&mut self, index: String, old_password: String, public_entry: T, private_entry: Vec<u8>, new_password: String) -> Option<Result<(), Error>> {
+        match self.remove_entry(index.clone(), old_password) {
+            None => None,
+            Some(Err(e)) => Some(Err(e)),
+            Some(Ok(_)) => Some(self.insert_entry(index, public_entry, private_entry, new_password)),
+        }
+    }
+
     pub fn remove_entry(&mut self, index: String, password: String) -> Option<Result<(), Error>> {
         match self.get_entry_private(index.clone(), password) {
             None => None,
@@ -125,6 +133,23 @@ mod tests {
     }
 
     #[test]
+    fn update_an_entry_from_its_index() {
+        let mut keystore = Keystore::<String>::new(None);
+        keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
+            public: "public".to_string(),
+            private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
+            meta: KeystoreEntryMeta {
+                nonce: Nonce::from_slice(&[78, 63, 137, 212, 148, 220, 165, 63, 239, 82, 130, 169]).clone(),
+                round: 10_000,
+            },
+        });
+
+        assert_eq!(keystore.update_entry("index".to_string(), "password".to_string(), "new_public".to_string(), "new_private".as_bytes().to_vec(), "new_password".to_string()), Some(Ok(())));
+        assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().public, "new_public".to_string());
+        assert_ne!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().private, "new_private".as_bytes().to_vec());
+    }
+
+    #[test]
     fn remove_an_entry_from_its_index() {
         let mut keystore = Keystore::<String>::new(None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
@@ -155,6 +180,7 @@ mod tests {
 
         assert!(keystore.get_entry_private("index".to_string(), "wrong_password".to_string()).unwrap().is_err());
         assert!(keystore.remove_entry("index".to_string(), "wrong_password".to_string()).unwrap().is_err());
+        assert!(keystore.update_entry("index".to_string(), "wrong_password".to_string(), "new_public".to_string(), "new_private".as_bytes().to_vec(), "new_password".to_string()).unwrap().is_err());
     }
 
     #[test]
