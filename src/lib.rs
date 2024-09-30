@@ -8,7 +8,7 @@ pub fn add(left: u64, right: u64) -> u64 {
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]
-struct KeystoreIndex(String);
+pub struct KeystoreIndex(String);
 
 #[derive(Debug, PartialEq)]
 struct KeystoreEntryMeta {
@@ -17,7 +17,7 @@ struct KeystoreEntryMeta {
 }
 
 #[derive(Debug, PartialEq)]
-struct KeystoreEntry<T> {
+pub struct KeystoreEntry<T> {
     public: T,
     private: Vec<u8>,
     meta: KeystoreEntryMeta,
@@ -29,9 +29,9 @@ pub struct Keystore<T> {
 }
 
 impl<T: Clone> Keystore<T> {
-    pub fn new(round: Option<u32>) -> Self {
+    pub fn new(initial: Option<HashMap<KeystoreIndex, KeystoreEntry<T>>>, round: Option<u32>) -> Self {
         Self {
-            entries: HashMap::<KeystoreIndex, KeystoreEntry<T>>::new(),
+            entries: initial.unwrap_or(HashMap::<KeystoreIndex, KeystoreEntry<T>>::new()),
             round: round.unwrap_or(10_000),
         }
     }
@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn respond_none_with_a_missing_index() {
-        let keystore = Keystore::<String>::new(None);
+        let keystore = Keystore::<String>::new(None, None);
 
         assert_eq!(keystore.get_entry_public("index".to_string()), None);
         assert_eq!(keystore.get_entry_private("index".to_string(), "password".to_string()), None);
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn add_an_entry() {
-        let mut keystore = Keystore::<String>::new(None);
+        let mut keystore = Keystore::<String>::new(None, None);
 
         assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Some(Ok(())));
         assert_eq!(keystore.insert_entry("index".to_string(), "new_public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), None);
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn find_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None);
+        let mut keystore = Keystore::<String>::new(None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn update_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None);
+        let mut keystore = Keystore::<String>::new(None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn remove_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None);
+        let mut keystore = Keystore::<String>::new(None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn fail_to_decrypt() {
-        let mut keystore = Keystore::<String>::new(None);
+        let mut keystore = Keystore::<String>::new(None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
