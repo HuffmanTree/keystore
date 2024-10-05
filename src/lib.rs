@@ -62,6 +62,7 @@ impl<T: Clone> Keystore<T> {
                     private: ciphertext,
                     meta: KeystoreEntryMeta { nonce, round: self.round },
                 });
+                self.synced = false;
                 Ok(())
             }
             Err(err) => Err(err),
@@ -111,6 +112,7 @@ impl<T: Clone> Keystore<T> {
             Some(Err(e)) => Some(Err(e)),
             Some(Ok(_)) => {
                 self.entries.remove(&KeystoreIndex(index));
+                self.synced = false;
                 Some(Ok(()))
             }
         }
@@ -158,8 +160,10 @@ mod tests {
     fn add_an_entry() {
         fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
         let mut keystore = Keystore::<String>::new(save, None, None);
+        keystore.synced = true;
 
         assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Some(Ok(())));
+        assert!(!keystore.synced);
         assert_eq!(keystore.insert_entry("index".to_string(), "new_public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), None);
         assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().public, "public".to_string());
         assert_ne!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().private, "private".as_bytes().to_vec());
@@ -194,8 +198,10 @@ mod tests {
                 round: 10_000,
             },
         });
+        keystore.synced = true;
 
         assert_eq!(keystore.update_entry("index".to_string(), "password".to_string(), "new_public".to_string(), "new_private".as_bytes().to_vec(), Some("new_password".to_string())), Some(Ok(())));
+        assert!(!keystore.synced);
         assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().public, "new_public".to_string());
         assert_ne!(keystore.entries.get(&KeystoreIndex("index".to_string())).unwrap().private, "new_private".as_bytes().to_vec());
     }
@@ -212,10 +218,12 @@ mod tests {
                 round: 10_000,
             },
         });
+        keystore.synced = true;
 
         keystore.remove_entry("index".to_string(), "password".to_string());
 
         assert_eq!(keystore.entries.get(&KeystoreIndex("index".to_string())), None);
+        assert!(!keystore.synced);
     }
 
     #[test]
