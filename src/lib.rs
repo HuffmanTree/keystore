@@ -26,13 +26,28 @@ pub struct KeystoreEntry<T> {
 pub struct Keystore<T> {
     entries: HashMap<KeystoreIndex, KeystoreEntry<T>>,
     round: u32,
+    synced: bool,
+    save_entries: fn(e: &HashMap<KeystoreIndex, KeystoreEntry<T>>) -> Result<(), Error>,
 }
 
 impl<T: Clone> Keystore<T> {
-    pub fn new(initial: Option<HashMap<KeystoreIndex, KeystoreEntry<T>>>, round: Option<u32>) -> Self {
+    pub fn new(save: fn(e: &HashMap<KeystoreIndex, KeystoreEntry<T>>) -> Result<(), Error>, initial: Option<HashMap<KeystoreIndex, KeystoreEntry<T>>>, round: Option<u32>) -> Self {
         Self {
             entries: initial.unwrap_or(HashMap::<KeystoreIndex, KeystoreEntry<T>>::new()),
             round: round.unwrap_or(10_000),
+            synced: false,
+            save_entries: save,
+        }
+    }
+
+    pub fn save(&mut self) -> Result<(), Error> {
+        if self.synced {
+            Ok(())
+        } else {
+            match (self.save_entries)(&self.entries) {
+                Ok(_) => { self.synced = true; Ok(()) },
+                Err(e) => Err(e),
+            }
         }
     }
 
@@ -108,15 +123,41 @@ mod tests {
 
     #[test]
     fn respond_none_with_a_missing_index() {
-        let keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let keystore = Keystore::<String>::new(save, None, None);
 
         assert_eq!(keystore.get_entry_public("index".to_string()), None);
         assert_eq!(keystore.get_entry_private("index".to_string(), "password".to_string()), None);
     }
 
     #[test]
+    fn save_keystore_success() {
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> {
+            Ok(())
+        }
+        let mut keystore = Keystore::<String>::new(save, None, None);
+
+        assert!(!keystore.synced);
+        assert!(keystore.save().is_ok());
+        assert!(keystore.synced);
+    }
+
+    #[test]
+    fn save_keystore_fail() {
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> {
+            Err(Error {})
+        }
+        let mut keystore = Keystore::<String>::new(save, None, None);
+
+        assert!(!keystore.synced);
+        assert!(keystore.save().is_err());
+        assert!(!keystore.synced);
+    }
+
+    #[test]
     fn add_an_entry() {
-        let mut keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let mut keystore = Keystore::<String>::new(save, None, None);
 
         assert_eq!(keystore.insert_entry("index".to_string(), "public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), Some(Ok(())));
         assert_eq!(keystore.insert_entry("index".to_string(), "new_public".to_string(), "private".as_bytes().to_vec(), "password".to_string()), None);
@@ -126,7 +167,8 @@ mod tests {
 
     #[test]
     fn find_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let mut keystore = Keystore::<String>::new(save, None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -142,7 +184,8 @@ mod tests {
 
     #[test]
     fn update_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let mut keystore = Keystore::<String>::new(save, None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -159,7 +202,8 @@ mod tests {
 
     #[test]
     fn remove_an_entry_from_its_index() {
-        let mut keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let mut keystore = Keystore::<String>::new(save, None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
@@ -176,7 +220,8 @@ mod tests {
 
     #[test]
     fn fail_to_decrypt() {
-        let mut keystore = Keystore::<String>::new(None, None);
+        fn save(_e: &HashMap<KeystoreIndex, KeystoreEntry<String>>) -> Result<(), Error> { Ok(()) }
+        let mut keystore = Keystore::<String>::new(save, None, None);
         keystore.entries.insert(KeystoreIndex("index".to_string()), KeystoreEntry {
             public: "public".to_string(),
             private : vec![221, 196, 210, 224, 17, 74, 123, 140, 86, 222, 90, 16, 186, 177, 27, 47, 233, 66, 102, 228, 104, 227, 55],
